@@ -1,0 +1,15 @@
+# Render Blueprint: Dashboard > New > Blueprint > pick your GitHub repo. Everything below is created for you.
+services:
+  - type: web
+    name: sketchsync
+    runtime: docker
+    plan: free            # change to "starter" ($7/month) for a server that never sleeps
+    healthCheckPath: /healthz
+    autoDeploy: true
+    envVars:
+      - key: ADMIN_KEY
+        generateValue: true      # Render invents a long secret; read it in Dashboard > Environment
+      - key: IP_SALT
+        generateValue: true
+      - key: MONGODB_URI
+        sync: false              # paste your MongoDB Atlas connection string here (see README, step 3)

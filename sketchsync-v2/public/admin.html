@@ -1,0 +1,38 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="robots" content="noindex">
+<title>SketchSync – Admin Console</title><link rel="icon" href="/icon.svg">
+<style>:root{--bg:#06061a;--card:rgba(255,255,255,.06);--line:rgba(255,255,255,.14);--n:#00ffc8;--p:#ff3ca0;color-scheme:dark}*{box-sizing:border-box}
+body{margin:0;background:radial-gradient(900px 500px at 0 -10%,#22094a,transparent),var(--bg);color:#eef;font:14px system-ui,sans-serif;padding:16px}
+h1{margin:0 0 4px;font-size:24px}h2{font-size:12px;letter-spacing:.12em;color:#9ab;margin:0 0 10px}.sub{color:#9ab;margin:0 0 14px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:14px;margin-bottom:14px}.g{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));margin-bottom:14px}
+.k{font:800 26px ui-monospace,monospace;color:var(--n)}.l{font-size:11px;color:#9ab;letter-spacing:.1em}
+input,button{font:inherit;border-radius:10px;border:1px solid var(--line);padding:9px 12px;background:rgba(0,0,0,.4);color:#eef}button{cursor:pointer;background:var(--n);color:#000;font-weight:700;border:0}button.a{background:var(--p);color:#fff}button.s{background:var(--card);color:#eef;border:1px solid var(--line)}button.m{padding:4px 9px;font-size:12px}
+.tw{overflow-x:auto}table{width:100%;border-collapse:collapse}th{text-align:left;color:var(--n);font-size:11px;letter-spacing:.08em;padding:7px}td{padding:7px;border-top:1px solid var(--line);white-space:nowrap}
+.bar{display:inline-block;height:12px;background:linear-gradient(90deg,var(--n),var(--p));border-radius:6px;vertical-align:middle}.dot{display:inline-block;width:9px;height:9px;border-radius:50%;background:#3f9;margin-right:6px}.tag{font-size:11px;padding:2px 8px;border-radius:99px;background:rgba(255,255,255,.1)}
+</style></head><body>
+<h1>SketchSync Admin Console</h1><p class="sub">Who is using your website, right now. Refreshes every 2 seconds.</p>
+<div id="login" class="card" style="max-width:420px"><h2>ADMIN KEY</h2><input id="key" type="password" placeholder="Value of the ADMIN_KEY environment variable" style="width:100%"><p style="margin:10px 0 0"><button id="go">Sign in</button> <span id="err" style="color:var(--p)"></span></p></div>
+<div id="app" style="display:none">
+<div class="g" id="kpi"></div>
+<div class="card"><h2>LIVE USERS</h2><div class="tw" id="users"></div></div>
+<div class="card"><h2>ROOMS</h2><div class="tw" id="rooms"></div></div>
+<div class="card"><h2>VISITS – LAST 14 DAYS (connections vs unique visitors)</h2><div id="daily"></div></div>
+<div class="card"><h2>ACTIVE LIMITS (change with environment variables)</h2><div id="cfg" style="line-height:1.9"></div></div>
+<div class="card"><h2>BLOCKED ADDRESSES</h2><div id="bans"></div></div>
+<p class="sub">IP addresses are shown masked. Visitors are counted with a one-way hash. Tell your users that connection details are logged.</p>
+</div>
+<script>
+const $=s=>document.querySelector(s),esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'})[c]);let K='';try{K=sessionStorage.getItem('ak')||''}catch(e){}
+async function call(p,body){const r=await fetch(p,{method:body?'POST':'GET',headers:{'x-admin-key':K,'Content-Type':'application/json'},body:body?JSON.stringify(body):undefined});const j=await r.json();if(!r.ok)throw Error(j.error||r.status);return j}
+const ago=t=>{const s=Math.round((Date.now()-t)/1000);return s<60?s+'s':s<3600?Math.floor(s/60)+'m '+s%60+'s':Math.floor(s/3600)+'h '+Math.floor(s%3600/60)+'m'};
+async function tick(){if(!K)return;try{const d=await call('/api/admin/live');$('#login').style.display='none';$('#app').style.display='';
+ $('#kpi').innerHTML=[['USERS ONLINE',d.connections],['ACTIVE ROOMS',d.rooms.length],['SHAPES IN MEMORY',d.shapes],['MESSAGES / SEC',d.msgsPerSec],['CONNECTIONS SINCE START',d.totalConnections],['UPTIME',Math.round(d.uptime/60)+' min'],['SERVER MEMORY',d.memoryMB+' MB']].map(k=>`<div class="card" style="margin:0"><div class="l">${k[0]}</div><div class="k">${k[1]}</div></div>`).join('');
+ $('#users').innerHTML=d.clients.length?`<table><tr><th>NAME</th><th>ROOM</th><th>DEVICE</th><th>IP (MASKED)</th><th>ONLINE FOR</th><th>MESSAGES</th><th>MODE</th><th></th></tr>${d.clients.map(c=>`<tr><td><span class="dot"></span>${esc(c.name)}</td><td>${esc(c.room)}</td><td>${esc(c.device)}</td><td>${esc(c.ip)}</td><td>${ago(c.joined)}</td><td>${c.msgs}</td><td><span class="tag">${c.viewer?'viewer':'editor'}</span></td><td><button class="s m" onclick="kick(${c.id},0)">Remove</button> <button class="a m" onclick="kick(${c.id},1)">Remove + block</button></td></tr>`).join('')}</table>`:'<p class="sub">Nobody is connected right now.</p>';
+ $('#rooms').innerHTML=d.rooms.length?`<table><tr><th>ROOM</th><th>USERS</th><th>SHAPES</th><th>HOST</th><th>STATE</th><th></th></tr>${d.rooms.map(r=>`<tr><td>${esc(r.room)}</td><td>${r.users}</td><td>${r.shapes}</td><td>${esc(r.host)}</td><td>${r.locked?'<span class="tag">locked</span> ':''}${r.protected?'<span class="tag">password</span>':''}</td><td><button class="s m" onclick="room('${esc(r.room)}','clear')">Clear board</button> <button class="a m" onclick="room('${esc(r.room)}','close')">Close room</button> <a href="#" style="color:var(--n)" onclick="lg('${esc(r.room)}');return false">Log</a></td></tr>`).join('')}</table>`:'<p class="sub">No active rooms.</p>';
+ const m=Math.max(1,...d.daily.map(x=>x.connections));$('#daily').innerHTML=d.daily.length?`<table>${d.daily.map(x=>`<tr><td>${x.d}</td><td><span class="bar" style="width:${x.connections/m*60}%"></span> ${x.connections} connections · <b style="color:var(--n)">${x.unique}</b> unique</td></tr>`).join('')}</table>`:'<p class="sub">No visits recorded yet.</p>';
+ $('#cfg').innerHTML=Object.entries(d.cfg).map(([k,v])=>`<span class="tag">${k}</span> <b>${v}</b>`).join(' &nbsp; ');
+ $('#bans').innerHTML=d.bans.length?d.bans.map(b=>`${esc(b.label)} <button class="s m" onclick="unban(${b.i})">Unblock</button>`).join('<br>'):'<span class="sub">None</span>'}catch(e){$('#err').textContent=e.message;if(/key/i.test(e.message)){K='';$('#login').style.display='';$('#app').style.display='none'}}}
+async function kick(id,ban){await call('/api/admin/kick',{id,ban});tick()}async function unban(i){await call('/api/admin/unban',{i});tick()}
+async function room(r,a){if(confirm((a=='close'?'Disconnect everyone in ':'Clear the board of ')+r+'?')){await call('/api/admin/room',{room:r,action:a});tick()}}
+async function lg(r){const t=await (await fetch('/api/admin/log?room='+encodeURIComponent(r),{headers:{'x-admin-key':K}})).text();const w=open('','_blank');if(w){w.document.write('<pre style="background:#000;color:#0fc;padding:12px;white-space:pre-wrap">'+esc(t)+'</pre>')}}
+$('#go').onclick=()=>{K=$('#key').value;try{sessionStorage.setItem('ak',K)}catch(e){}$('#err').textContent='';tick()};$('#key').onkeydown=e=>{if(e.key=='Enter')$('#go').click()};setInterval(tick,2000);tick();
+</script></body></html>

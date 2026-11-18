@@ -1,0 +1,10 @@
+{
+  "name": "sketchsync",
+  "version": "2.0.0",
+  "description": "Real-time collaborative whiteboard (WebSocket server, board colours, templates, video calls, PWA)",
+  "main": "server.js",
+  "scripts": { "start": "node server.js", "test": "node tests/smoke.test.js" },
+  "engines": { "node": ">=18" },
+  "optionalDependencies": { "mongodb": "^6.8.0" },
+  "license": "MIT"
+}
